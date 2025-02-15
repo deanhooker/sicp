@@ -1,0 +1,1229 @@
+#+TITLE: Structure & Interpretation of Computer Programs
+
+* Chapter 1: Building Abstractions with Procedures
+"Computational processes are abstract beings which inhabit computers". Processes manipulate
+data. Processes are directed by programs.
+** Lisp
+Lisp because desciptions of processes (called procedures) can themselves be represented
+and manipulated as Lisp data. Powerful program-design techniques which can blur the distinction
+betweeen "passive" data and "active" processes. The ability to represent procedures as data
+makes Lisp an excellent language for writing programs which manipulate other programs as data,
+such as interpreters and compilers.
+
+** 1.1 The Elements of Programming
+In programming we deal with two kinds of elements: data and procedures (which are not really
+so distinct.)
+
+*** 1.1.1 Expressions
+Lisp programs are made up of expressions. The following are some typical expressions:
+486
+=> 486
+
+(+ 1 2)
+=> 3
+
+A primitive datum such as an integer and a primitive procedure such as addition are both
+expressions.
+
+*** 1.1.2 Naming and the Environment
+A critical aspect of a programming language is the ability to associate a name with an object.
+This is our language's simplest means of abstraction: it allows us to use simple names to refer
+to the results of complex operations.
+
+(define size 2)
+
+size
+=> 2
+
+(* 5 size)
+=> 10
+
+Clearly the possibility of associating values with symbols and later retrieving them means the
+interpreter must maintain some sort of memory that keeps track of the name-object pairs. This
+is called the `environment` (or global environment).
+
+*** 1.1.3 Evaluating Combinations
+To evaluate a combination do the following:
+1. Evaluate the subexpressions of the combination.
+2. Apply the procedure that is the value of the leftmost subexpression (the operator) to the
+arguments that are the values of the other subexpressions (the operands).
+
+A few points:
+- The first step dictates that in order to accomplish the evaluation process we must first
+perform the evaluation process on each element. Thus the evaluation rule is `recursive`; it
+includes the need to invoke itself.
+Lisp code has a tree structure:
+
+(* (+ 2
+      (* 4 6))
+   (+ 3 5 7))
+
+Recursion is a very powerful technique for dealing with hierarchical, treelike objects. Imagine
+the values "percolating upward", an example of `tree accumulation`.
+
+- Repeated application of the first step brings us to the point where we need to evaluate not
+combinations, but the primitive expressions.
+
+Notice that
+
+(define x 2)
+
+is not a combination. The interpreter does not apply `define` to `x` and `2`, it associates the
+name with the value. This is a type of `special form` or `syntactic sugar`.
+
+Quote: Alan Perlis - "Syntactic sugar causes cancer of the semicolon."
+
+*** 1.1.4 Compound Procedures
+Constructing (and naming) procedures out of primitive procedures.
+e.g.
+
+(define (square x) (* x x))
+
+(define (sum-of-squares x y)
+  (+ (square x) (square y)))
+
+Compound procedures are used in exactly the same way as primitive procedures. One cannot
+tell by looking at the definition of sum-of-squares whether square is a primitive or defined
+as a compound procedure.
+*** 1.1.5 The Substition Model for Procedure Application
+To apply a compound procedure to arguments, evaluate the body of the procedure with each formal
+parameter replaced by the corresponding argument.
+
+Applicative-order vs Normal-order
+Lisp's in general use applicative-order evaluation, in which the operator and operands are
+evaluated and then the resulting procedure is applied.
+
+Alternatively we could wait until an operand's value was needed before evaluating. This is how
+conditionals are implemented for example.
+
+Imagine passing an expression as an argument which spawns an infinite process. An effective
+conditional will only spawn this infinite process if the conditional is met.
+*** 1.1.6 Conditional Expressions and Predicates
+We need to be able to define a test and execute a procedure based on the result. These conditionals
+also happen to be `special forms` in which all argument expressions are not necessarily evaluated.
+
+e.g. cond
+(define (abs x)
+ (cond ((> x 0) x)
+       ((= x 0) 0)
+       ((< x 0) (- x))))
+
+If predicate evaluates to true, then the corresponding expression is evaluated.
+
+another example:
+
+(define (abs x)
+ (if (< x 0)
+     (- x)
+     x))
+
+*** 1.1.7 Example: Square Roots by Newton's Method
+Imperative vs declarative statements or knowledge. Imperative describes how to do something
+declarative describes what something is. Mathematical functions are declarative, programming
+procedures are imperative.
+
+Newton's Method for Approximating Square Roots
+(define (average x y)
+  (/ (+ x y) 2))
+
+(define (improve guess x)
+  (average guess (/ x guess)))
+
+(define (good-enough? guess x)
+  (< (abs (- (square guess) x)) 0.001))
+
+(define (sqrt-iter guess x)
+  (if (good-enough? guess x)
+      guess
+      (sqrt-iter (improve guess x)
+      x)))
+
+(define (sqrt x)
+  (sqrt-iter 1.0 x))
+
+Note: we have not introduced any iterative (looping) construct to our language to instruct
+the computer to do something over and over again. Iteration can be done using no special
+construct other than the ability to call a procedure.
+
+*** 1.1.8 Procedures as Black-Box Abstractions
+The `sqrt` procedure is composed of many other procedures, each of which accomplishes an
+identifiable task. For example, it shouldn't matter to `sqrt` how `good-enough?` is accomplished,
+only that there is a procedure for doing so. It could be replaced with another procedure for the
+same task.
+
+Local names: The formal parameters of a procedure are `bound` to the `scope` of the procedure.
+Calling a parameter x `binds` the variable x within the procedure but other areas of the program
+shouldn't have access to this particular x. In contrast the procedure `<` is a `free` variable.
+It is available to all aspects of the program.
+
+Internal definitions and block structure: Back to the example of `sqrt`, the procedures `sqrt-iter`,
+`good-enough?`, etc only make sense for `sqrt`. To prevent cluttering they can be defined within
+the `sqrt` procedure:
+
+(define (sqrt x)
+  (define (sqrt-iter guess x) ...)
+  (define (good-enough? guess x) ...)
+  ...)
+
+This nesting of definitions is known as block structure.
+
+From here we can see that x is bound to the scope of the sub-procedures, but is not in fact changing
+within the scope of `sqrt`. From here we can remove `x` as a formal parameter from these procedures
+as it is bound within the scope of `sqrt` and therefore these sub-procedures. This is known as
+`lexical scoping`.
+** 1.2 Procedures and the Processes They Generate
+It is necessary to be able to visualize the consequences of executing a procedure. How time
+intensive with it be? How will it use resources?
+
+A procedure is a pattern for the local evolution of a computational process. We would like
+to be able to make statements about the overall, global, behavior of a process.
+
+*** 1.2.1 Linear Recursion and Iteration
+Consider the factorial function n! = n * (n - 1) * (n - 2) * ... * 2 * 1
+
+(define (factorial n)
+  (if (= n 1)
+      1
+      (* n (factorial (- n 1)))))
+
+This results in a `linear recursive process` with the following shape:
+
+(factorial 5)
+(* 5 (factorial 4))
+(* 5 (* 4 (factorial 3)))
+(* 5 (* 4 (* 3 (factorial 2))))
+(* 5 (* 4 (* 3 (* 2 (factorial 1)))))
+(* 5 (* 4 (* 3 (* 2 1))))
+(* 5 (* 4 (* 3 2))
+(* 5 (* 4 6))
+(* 5 24)
+120
+
+A different definition of `factorial` could be multiply 1 by 2, then the product by 3,
+then 4, and so on for n number of steps:
+
+(define (factorial2 n)
+  (define (iter product counter)
+    (if (> counter n)
+        product
+        (iter (* counter product)
+              (+ counter 1))))
+  (iter 1 1))
+
+Here the process follows the shape:
+
+(factorial 5)
+(iter   1 1 5)
+(iter   1 2 5)
+(iter   2 3 5)
+(iter   6 4 5)
+(iter  24 5 5)
+(iter 120 6 5)
+120
+
+In the first example the process builds a chain of `deferred operations`. The interpreter needs
+to keep track of the operations to be performed later. The length of the chain in this situation
+grows linearly with `n` so it is a `linear recursive process`.
+
+The second example shows an `iterative process`. The process maintains a `state` and has rules for
+altering that `state`. The number of steps to compute n! grows linearly with `n`.
+
+Also if we stopped computation partway through the iteration example, then restarted it, the execution
+would be able to complete. The state at any point has enough information to continue. Not so with the
+recursive process. There is `hidden` information maintained by the interpreter. (An iterative process
+can be realized in hardware, where the recursive process requires an auxiliary memory data structure
+known as a `stack`).
+
+There is an important distinction between a `recursive process` and a `recursive procedure`. A procedure
+can generate an `iterative process`, e.g. our factorial procedure which uses `iter`. This property is
+known as `tail recursion`.
+*** 1.2.2 Tree Recursion
+Consider the Fibonacci sequence:
+Fib(n) = 0                    if n = 0
+Fib(n) = 1                    if n = 1
+Fib(n) = Fib(n-1) + Fib(n-2)  otherwise
+
+(define (fib n)
+  (cond ((= n 0) 0)
+        ((= n 1) 1)
+        (else (+ (fib (- n 1))
+                 (fib (- n 2))))))
+
+The evolved process looks like a tree, branching into 2 at each level (except the leaves).
+
+This is a terrible way to calculate the Fibonacci numbers as most of the calculation is redundant.
+
+In general number of steps required by a tree-recursive process will be proportional to the number
+of nodes in the tree, while the space required will be proportional to the maximum depth of the tree.
+
+We can also spawn an iterative process using a pair of integers `a` and `b` initialized to
+Fib(1) = 1 and Fib(0) = 0 and repeatedly apply simultaneous transformations:
+a <- a + b
+b <- a
+
+(define (fib-iter a b count)
+  (if (= count 0)
+      b
+      (fib-iter (+ a b) a (- count 1))))
+
+(define (fib n)
+  (fib-iter 1 0 n))
+
+Tree-recursive processes are natural and powerful tools when operating on hierarchically structured data,
+e.g. interpretor operating on LISP code.
+*** 1.2.3 Orders of Growth
+Big O notation (actually theta). O(n). Where n is some
+parameter which measures the size of the problem.
+*** 1.2.4 Exponentiation
+Exploring growth with exponentiation.
+b^n = b . b^n-1
+b^0 = 1
+
+A naive implementation would be:
+(define (expt b n)
+  (if (= n 0)
+      1
+      (* b (expt b (- n 1)))))
+
+This is naive because we can use successive squaring to reduce the number of steps:
+b^2 = b . b
+b^4 = b^2 . b^2
+b^8 = b^4 . b^4
+
+We can add the conditional
+b^n = (b^n/2)^2       if n is even
+b^n = b . b^n-1       if n is odd
+
+Now our expt process grows O(log(n)). Computing b^2n only takes one more step than b^n.
+*** 1.2.5 Greatest Common Divisors
+One algorithm (Euclid's Algorithm) for finding GCD is if r is the remainder when a is divided by b:
+GCD(a, b) = GCD(b, r)
+
+e.g. (the second number will eventually produce a 0, the other number is the gcd)
+GCD(206, 40) = GCD(40, 6)
+             = GCD(6, 4)
+             = GCD(4, 2)
+             = GCD(2, 0)
+
+^ Iterative, O(log(n))
+*** 1.2.6 Example: Testing for Primality
+2 Methods for checking for prime numbers.
+- One with O(sqrt(n))
+- Probablistic with O(log(n))
+
+First (n is prime if it is equal to its smallest divisor):
+(define (divides? a b)
+  (= (remainder b a) 0))
+
+(define (find-divisor n test-divisor)
+  (cond ((> (square test-divisor) n) n)
+        ((divides? test-divisor n) test-divisor)
+        (else (find-divisor n (+ test-divisor 1)))))
+
+(define (smallest-divisor n)
+  (find-divisor n 2))
+
+(define (prime? n)
+  (= n (smallest-divisor n)))
+
+We try an inital smallest divisor guess of 2, then try with successive integers.
+We never need try higher than sqrt(n), therefore the number of steps will have order
+of growth O(sqrt(n))
+
+Second is probablistic (Fermat's little thereom):
+If n is a prime number and a is any positive integer less than n, then a raised to the nth
+power is congruent to a modulo n. i.e. remainder of a/n = remainder of (a^n)/n
+
+Since we have this rule we can use a random number guess for a and try as many times as we
+like, becoming more certain with each guess.
+
+** 1.3 Formulating Abstractions with Higher-Order Procedures
+Procedures are abstractions that describe compound operations, such as cube:
+
+(define (cube x) (* x x x))
+
+Now we can talk about the concept of cubing instead of only cubing explicitly when we need to.
+
+Even in numerical processing we would be severly limited without being able to create abstractions
+where the parameters must be numbers.
+
+Procedures which manipulate procedures are known as higher-order procedures.
+*** 1.3.1 Procedures as Arguments
+An example for a procedure taking a procedure as an argument is SUM. Looking at the following
+procedures we can see common use patterns:
+
+(define (sum-integers a b)
+  (if (> a b)
+      0
+      (+ a (sum-integers (+ a 1) b)))
+
+(define (sum-cubes a b)
+  (if (> a b)
+      0
+      (+ (cube a) (sum-cubes (+ a 1) b))) , etc
+
+The general pattern for summation:
+(define (<name> a b)
+  (if (> a b)
+      0
+      (+ (<term> a)
+         (<name> (<next> a) b)))
+
+(define (sum term a next b)
+  (if (> a b)
+      0
+      (+ (term a)
+         (sum term (next a) next b)))
+where term and next are procedures.
+(see exercises for expansion on sum with product defining the null-value as 1 and combiner as multiplication
+and further into a general procedure for both called accumulate)
+*** 1.3.2 Constructing Procedures Using `Lambda`
+(lambda (x) (<body>)) defines a procedure
+Use let to create local variables. This is actually just syntactic sugar over lambda
+(define (add-tuple x)
+  (let ((a (car x))
+        (b (car (cdr x))))
+    (+ a b)))
+
+is actually
+(define (add-tuple x)
+  ((lambda (a b)
+     (+ a b))
+   (car x)
+   (car (cdr x))))
+*** 1.3.3 Procedures as General Methods
+Examples of using procedures for finding f(x) = 0 and for finding
+fixed points of functions (f(x) = x).
+
+Pretty much just exercises in recursion and passing functions
+as arguments to more general procedures.
+*** 1.3.4 Procedures as Returned Values
+Even more expressive power is at our disposal with procedures which
+return procedures. We have been using average damp to help with our
+fixed point search. y -> x/y damped becomes y - > 1/2(y + x/y).
+
+Expressed as a procedure which returns a procedure:
+
+(define (average-damp f)
+  (lambda (x) (average x (f x))))
+
+(average-damp square 10)
+=> 55      // average of 10 and 100
+
+Other great examples are repeatedly applying the same fn over
+and over, composing multiple functions into one, etc.
+* Chapter 2: Building Abstractions with Data
+It is important to be able to create compound data in order to increase
+the expressiveness of our language in our chosen problem domain. The choice of
+representation for this data can have impacts on the performance of the system
+so we must separate the representation of these data from how they are used.
+This is known as data abstraction. This allows us to use data without knowing
+the internal representation, and allows us to alter the internal representation
+without affecting the system at large.
+** 2.1 Introduction to Data Abstraction
+In the previous chapter we explored procedural abstraction: we could pass around
+and use a procedure with the internal details surpressed. e.g. we could replace
+a recursive procedure with an iterative one without changing the rest of the program.
+We can follow the same approach with data objects, by defining procedures for using
+these data as an interface: selectors and constructors.
+*** 2.1.1 Example: Arithmetic Operations for Rational Numbers
+Supposed we want to do arithmetic with rational numbers. Rational numbers can be
+thought of as two integers: a numerator and denominator. If we have a way of 'gluing'
+these numbers together, as well as extracting both numbers when we need them, we have
+everything we need to represent rational number arithmetic.
+
+We can even go so far as to create all of the arithmetic procedures
+assuming we have a way construct rational numbers and select their
+parts, implementing those at a later point.
+
+*** 2.1.2 Abstraction Barriers
+It is important, for the sake of modularity, to implement strong
+abstraction barriers:
+
+----- Programs with use rational numbers ------
+      Rational numbers in problem domain
+------- add-rat sub-rat mul-rat div-rat -------
+Rational numbers as numerators and denominators
+----------- make-rat number denom -------------
+          Rational numbers as pairs
+--------------- cons car cdr ------------------
+        However pairs are implemented
+
+We can implement some layers of the the program while differing
+decisions about other until later, or altering the representation of
+data without having to refactor other parts.
+
+*** 2.1.3 What Is Meant by Data?
+As long as selectors and constructors of a datum meet specified
+conditions, they can be implemented in any way. See exercises for
+examples of defining pairs as procedures, or as the product
+(2^a)(3^b).
+
+*** 2.1.4 Extended Exercise: Interval Arithmetic
+See exercises for implementing intervals as pairs of upper and lower
+bounds, or a center with a width. We can write the arithmetic layer
+without knowing the details of the intervals implementation. Various
+design considerations lead us to the conclusion that both are valid
+and can co-exist.
+
+** 2.2 Hierarchical Data and the Closure Property
+If we can glue two things together to create pairs (with cons), and we
+can create pairs whose elements are pairs, then cons has the property
+of CLOSURE.
+
+IN GENERAL, AN OPERATION FOR COMBINING DATA OBJECTS SATISFIES THE
+CLOSURE PROPERTY IF THE RESULTS OF COMBINING THINGS WITH THAT
+OPERATION CAN THEMSELVES BE COMBINED WITH THE SAME OPERATION.
+
+Note: Closure also refers to an implementation technique for
+representing procedures with free variables.
+
+Closure allows us to create hierarchical structures - structures made
+up of parts which are themselves made up of parts.
+*** 2.2.1 Representing Sequences
+Sequences are ordered collections of data objects. In LISP we most
+commonly use lists, pairs build by successive cons-ing of elements
+where the terminating cdr is the empty list '().
+
+With only cons, car and cdr we can implement: nth, append, map,
+filter, reduce, etc.
+*** 2.2.2 Hierarchical Structures
+Cons-ing multiple lists together allows us to build lists whose
+elements are lists: a tree. Procedures for operating on trees are
+typically the same as would operate on a list with an additional
+conditional dispatch if the element is a list.
+*** 2.2.3 Sequences as Conventional Interfaces
+Assuming our data is a sequence we can view operations we would need
+to perform as all being constructed out of map, filter and
+accumulate/reduce.
+
+e.g. even-fibs:
+enumerate: -> map: -> filter: -> accumulate:
+integers      fib     even?      cons, ()
+
+e.g. sum-odd-squares
+enumerate: -> filter: -> map: -> accumulate:
+tree leaves   odd?       square  +, 0
+
+Expressing programs as sequence operations gives us modularity.
+
+See exercises for examples of nested mappings simulating matrices.
+*** 2.2.4 Example: A Picture Language
+Exercise demonstrates a language comprised of painters (which draw an
+image scaled to fit its frame), frames, and means of combination. This
+language demonstrates the closure property and how to build up our own
+domain specific language for talking about using our data.
+** 2.3 Symbolic Data
+So far all of our data has been numbers or combinations of
+numbers. Now we introduce symbols as data.
+*** 2.3.1 Quotation
+In order to manipulate symbols we need quotation. Example:
+(define a 1)
+(define b 2)
+
+(list a b)
+=> (1 2)
+
+(list 'a 'b)
+=> (a b)
+*** 2.3.2 Example: Symbolic Differentiation
+See exercises for a program which takes an algebraic expression and a
+variable and returns the derivitive.
+
+(deriv '(+ (expt x 2) (* 3 x) 2) 'x)
+=> (+ (* 2 x) 3)
+
+*** 2.3.3 Example: Representing Sets
+See exercises for examples of implementing sets as unordered lists, as
+ordered lists, and as binary trees (with automatic balancing of the
+tree branches). Each implementation has implications on performance
+for constructing a set or reading from the set.
+*** 2.3.4 Example: Huffman Encoding Trees
+Implementing huffman encoding trees gives practice with dealing with
+sets as trees.
+** 2.4 Multiple Representations for Abstract Data
+It is not enough to have abstraction barriers vertically (between
+lower and higher levels), we also need them horizontally (between
+representations on the same level). This is illustrated with complex numbers.
+*** 2.4.1 Representations for Complex Numbers
+Complex numbers can be represented as a pair of real and imaginary
+numbers (rectangular), or as a pair of magnitude and angle (polar).
+
+Polar makes sense for implementing multiplication and division and
+rectangular for addition and subtraction. How do we have both in the
+same system?
+*** 2.4.2 Tagged Data
+Data can be tagged. In our case we create a pair with a type-tag and
+contents. Then we can define generic operations on complex
+numbers. These will first look at the type, then send the contents to
+the selectors for that type. e.g.
+
+(define (magnitude z)
+  (cond ((rectangular? z)
+         (magnitude-rectangular (contents z)))
+        ((polar z)
+         (magnitude-polar (contents z)))
+        (else (error "Unknown type"))))
+
+*** 2.4.3 Data-Directed Programming and Additivity
+The general strategy for checking the type of a datum and calling an
+appropriate procedure is called DISPATCHING ON TYPE.
+
+The previous naive implementation requires that each generic selector
+be updated with each new type, and each type selector have a unique
+name.
+
+To address this problem we use a technique called DATA-DIRECTED
+PROGRAMMING. We can imagine a table with GET and PUT operations, where
+we put selector procedures keyed by procedure name and type.
+
+Now we need to add procedures to this table (with a package installer,
+this allows us to avoid name clashes as it is the procedure object
+which is put into the table) and a procedure apply-generic which takes
+a procedure name and data args, and looks up the correct procedure
+from the table based on name and data types.
+
+An alternative strategy is to instead of using "intelligent
+operations" which dispatch on data types, use "intelligent data
+objects" which dispatch on operation names. Now a data object is a
+procedure which takes an operation name as an argument and lets the
+object do the work. e.g.
+
+(define (make-from-real-imag x y)
+  (define (dispatch op)
+    (cond ((eq? op 'real-part) x)
+          ((eq? op 'imag-part) y)
+          ((eq? op 'magnitude)
+           (sqrt (+ (square x) (square y))))
+          ((eq? op 'polar) (atan y x))
+          (else (error "Unknown op"))))
+  dispatch)
+
+(define (apply-generic op arg) (arg op))
+
+(define (real-part z) (apply-generic 'real-part z))
+
+(real-part (make-from-real-image 2 4))
+((lambda (z) (apply-generic 'real-part z)) (make-from-real-image 2 4))
+((lambda (z)
+  (z 'real-part))
+ (make-from-real-image 2 4))
+((lambda (z)
+  (z 'real-part))
+ (lambda (op)
+  (cond ((eq? op 'real-part) 2)
+          ((eq? op 'imag-part) 4)
+          ((eq? op 'magnitude)
+           (sqrt (+ (square 2) (square 4))))
+          ((eq? op 'polar) (atan 4 2))
+          (else (error "Unknown op")))))
+((lambda (op)
+  (cond ((eq? op 'real-part) 2)
+          ((eq? op 'imag-part) 4)
+          ((eq? op 'magnitude)
+           (sqrt (+ (square 2) (square 4))))
+          ((eq? op 'polar) (atan 4 2))
+          (else (error "Unknown op")))) 'real-part)
+=> 2
+** 2.5 Systems with Generic Operations
+We've looked at how to define operations which are generic over
+different representations of the same data. Now we look at generic
+operations over different kinds of data. An example is a system which
+uses numbers. We should be able use the same procedure, add, to add
+primitive integers, rational numbers, complex numbers, etc.
+*** 2.5.1 Generic Arithmetic Operations
+Going back to DATA-DIRECTED PROGRAMMING we can use installers to
+install packages scheme-number, rational, complex (which itself
+imports the polar and rectangular complex number packages). This is
+analogous to how we handled complex numbers.
+
+The case of complex numbers are interesting because our other data
+types have a single type-tag, where complex numbers now have two:
+'complex and 'rectangular or 'polar. 'complex pulls in the correct
+operations for dealing with complex numbers, which then need to
+dispatch on 'polar or 'rectangular.
+*** 2.5.2 Combining Data of Different Types
+We should be able to add different types. An integer should be able to
+be converted into a rational number if added to a rational
+number. This is known as COERCION.
+
+Typically types will be in a hierarchy where we can COERCE types along
+a chain. This adds complexity in how to manage these hierachies.
+
+Also worth noting that hierachies of types are often inadequate. Types
+often have more of a graph relationship.
+*** 2.5.3 Example: Symbolic Algebra
+This example illustrates the recursive nature we can get with defining
+generic operations. The example uses polynomials. We should be able to
+add, sub, div and mul algebraic expressions like x + y. Further we
+should be able to do arithemetic on them with our other types.
+
+(2/3)y + 2x is also valid.
+
+We can also have:
+
+(2/3)y^((4/3)x).
+
+By adding generic operations we now have integer, rational, polar and
+polynomials, where polynomials can be defined in terms of integer,
+rational, polar and polynomials, which can be definied in terms of
+integer, rational, polar and polynomials, etc.
+* Chapter 3: Modularity, Objects, and State
+Modularity is extremely important; being able to add new pieces, or
+debug old ones, should only involve localized changes.
+
+Two models for designing programs are:
+- Object-oriented programming - Modeling pieces as objects in the real world
+- Stream processing - Processing streams of data
+** 3.1 Assignment and Local State
+We usually view the real world as being composed of independent
+objects. Each object has a STATE, which means that its BEHAVIOR IS
+INFLUENCED BY ITS HISTORY. E.g. a bank accounts balance is a state
+variable which is influenced by the history of deposits and
+withdrawals.
+
+In a system composed of many objects, the objects are rarely
+completely independent. Each may influence the state of the others,
+coupling them. When modeling a system in this way it is important to
+constantly be trying to minimize the tight-coupling between
+objects. Since coupling cannot be totally removed we must try to
+create groups of tightly coupled subsystems which are only loosely
+coupled to other subsystems.
+
+Object-oriented programming (OOP) can be a powerful framework for
+organizing computational models of a system. For a program to be
+modular each object must have a LOCAL STATE which can change over the
+time in which a program runs.
+
+*** 3.1.1 Local State Variables
+Example: a bank account object (initialized with $100) with a method withdraw:
+(withdraw 25)
+=> 75
+
+(withdraw 25)
+=> 50
+
+(withdraw 60)
+=> "Insufficient funds"
+
+(withdraw 15)
+=> 35
+
+Evaluating the same expression twice yields different results. The
+withdraw procedure is not a MATHEMATICAL FUNCTION. This changes how
+we must reason about our programs.
+
+See exercises for examples.
+
+**** Encapsulation
+We can have procedures alter GLOBAL VARIABLES or create OBJECTS which
+ENCAPSULATE state as LOCAL VARIABLES
+*** 3.1.2 The Benefits of Introducing Assignment
+The example shows an implementation of estimating pi by using the
+thereom that 6/pi^2 is the probability in which two numbers, chosen at
+random, will have a greatest common divisor of 1. Allowing a procedure
+which can return a seemingly random number (which is not a
+mathematical function) allows greater modularity than the functional
+implementation.
+
+We can separate the idea of the Cesaro Test:
+
+(define (cesaro-test)
+  (= (gcd (rand) (rand)) 1))
+
+The Monte Carlo test runner:
+
+(define (monte-carlo trials experiment)
+  (define (iter trials-remaining trials-passed)
+    (cond ((= trials-remaining 0)
+           (/ trials-passed trials))
+          ((experiment)
+           (iter (- trials-remaining 1)
+                 (+ trials-passed 1)))
+          (else
+           (iter (- trials-remaining 1)
+                 trials-passed))))
+  (iter trials 0))
+
+And the pi estimation:
+
+(define (estimate-pi trials)
+  (sqrt (/ 6 (monte-carlo trials cesaro-test))))
+
+We could create a functional random number generator which always
+returns the same "random" number given the same argument but then
+cesaro-test would need to take at least one argument to generate the
+random numbers, monte-carlo would need to keep track of the last
+random numbers used, and the estimate-pi procedure would need to
+initialize a random number. There is no clear modularity in this
+case. Each abstraction is bleeding logic into the others.
+
+*** 3.1.3 The Costs of Introducing Assignment
+Separating identity from value. The identity of the integer 1 has a
+value 1. However if I create two bank accounts each with $100 are they
+the same? They have the same value at this point in time but are not
+the same account.
+
+(define peter-acc (make-account 100))
+(define paul-acc (make-account 100))
+
+We also introduce aliasing; calling the same object by different
+names. What if we create:
+
+(define peter-acc (make-account 100))
+(define paul-acc peter-account)
+
+Now we have two accounts which are really the same account. If we want
+to reason about how peter-acc evolves over time we must include all
+changes to paul-acc too.
+
+IMPERATIVE PROGRAMMING makes excessive use of assignment and
+introduces bugs which FUNCTIONAL programs are not susceptible to.
+
+** 3.2 The Environment Model of Evaluation
+Once we introduce assignment we must think of what environment an
+expression is being evaluated in. An environment is a sequence of
+frames which are a table of key-value pairs (the variable bindings),
+and a pointer to the next environment.
+*** 3.2.1 The Rules for Evaluation
+Here, a procedure is thought of as a block of code and a pointer to an
+environment. When a lambda expression is applied it creates a new
+frame which binds the formal parameter names to the arguments it was
+called with, and then the code is evaluated in this new environment.
+
+define is a special case which binds a variable in the environment
+which it was evaluated in.
+*** 3.2.2 Applying Simple Procedures
+A key takeaway is that each call to a procedure creates a new
+environment.
+*** 3.2.3 Frames as the Repository of Local State
+Example:
+
+(define (make-withdraw balance)
+  (lambda (amount)
+    (if (>= balance amount)
+      (begin (set! balance (- balance amount))
+             balance)
+      "Insufficient funds"))
+
+(define W1 (make-withdraw 100))
+
+(W1 50)
+=> 50
+
+When we create W1 we create a new environment frame E1 in which
+balance is cast to 100. When we execute W1 as a procedure a new frame
+is created with amount set to 50, pointing at E1, where balance
+is 100. The set! operation thus operates on the balance variable
+contained in E1.
+
+Executing W1 again points to E1 where balance is now 50.
+
+Creating a new make-withdraw object, (define W2 (make-withdraw 100)),
+creates a new environment frame E2.
+
+*** 3.2.4 Internal Definitions
+Back in 1.1.8 we looked at a sqrt procedure with procedures
+"define"-ed within it. Now we know how this works. When sqrt is
+created, with its E1 frame, the internal procedures are also created
+within this frame. This keeps them internal to this frame and gives
+them access to the formal parameters.
+
+** 3.3 Modeling with Mutable Data
+In chapter 2 we looked at creating arbitrary data abstractions using
+constructors (to "glue" together data pieces) and selectors (to access
+the different pieces). Now that we want to include STATE encapsulated
+within our data OBJECTS we need a new type of operation on data:
+MUTATORS.
+
+*** 3.3.1 Mutable List Structure
+The primitives cons, car and cdr are incapable of modifying list
+structure, as are other procedures which we have constructed such as
+list and append.
+
+The primitives for mutable pairs are set-car! and set-cdr! Example:
+
+(def x '((a b) c d))
+(def y '(e f))
+
+(set-car! x y)
+x
+=> '((e f) c d)
+
+Note: the original car '(a b) is now detached from any accessible data
+structure. It is "garbage". LISP memory management systems include a
+"garbage collector", which identifies and recycles the memory space
+used by unneeded pairs.
+
+Sharing and Identity:
+
+Important to understand how things are the "same". The primitive
+procedure eq? tests whether the argument objects are actually the same
+object.
+
+(define x '(a b))
+(define y x)
+(define z '(a b))
+
+y and x are the same object
+x and z are NOT the same object.
+
+Mutating x will affect y but not z.
+
+**** Mutation is just assignment!
+As soon as we admit set! into our language we raise all issues, not
+just of assignment but of mutable data in general.
+
+Example showing how to create an object in an OOP sense.
+
+On the other hand when creating an interpreter, assignment requires us
+to modify the environment (itself a mutable data
+structure). Assignment and mutation are equipotent, they can be
+implemented in terms of each other.
+
+*** 3.3.2 Representing Queues
+Queues are FIFO (first in, first out). We must be able to add elements
+to the end and delete from the front.
+
+Implemented by the following set of operations:
+- Constructor (make-queue)
+- Selectors (empty-queue? q) (front-queue q)
+- Mutators (insert-queue! q item) (delete-queue! q)
+
+Implementing as a list would require traversing all elements by
+successive cdr's; O(n). We can use a different representation to get
+O(1).
+
+#+BEGIN_SRC scheme
+(define (front-ptr queue) (car queue))
+(define (rear-ptr queue) (cdr queue))
+(define (set-front-ptr! queue item) (set-car! queue item))
+(define (set-rear-ptr! queue item) (set-cdr! queue item))
+
+(+ 1 2)
+#+END_SRC
+
+
+A queue will be represented as a pair of pointers, one to the front
+and one to the rear.
+*** 3.3.3 Representing Tables
+Tables (in this example) are implemented as a list where the first
+item is the table name/identifier and the rest of the list are the
+entries, which in a flat table are pairs '(key . value) and where
+nested keys are allowed they can also be subtables. Mutation is used
+to add new entries into the table with a insert! function.
+
+*** 3.3.4 A Simulator for Digital Circuits
+An exercise creating a simulation for digital circuits where wires are
+objects with state (on/off) and procedures are added to them to change
+the state of wires further down the circuit. For example an inverter
+(or NOT gate) adds a procedure to the input wire to change the state
+of the output wire when the input's state changes. Thus changes are
+propagated through the system.
+
+An agenda is created to keep track of the time delays throughout the
+system. Gates have delays which slow the propagation of changes. The
+agenda data structure is a table keyed by time (after initialization)
+where the values are a queue of procedures to be run.
+
+A probe procedure is also created to print the value of a wire and at
+what time the value is measured.
+*** 3.3.5 Propagation of Constraints
+See 3_3_5_constraints.scm
+
+Built a constraints system for providing the value of the unprovided
+input to an algebraic expression e.g. celsius-fahrenheit
+converter. Defining the expression for converting between them once,
+we only need to provide one to get the other.
+
+The implmentation was similar to the one for digital circuits. The
+primary components are "connectors" which get combined by "converters"
+such as adder, multiplier and constant. These take connectors and if
+the value on one changes, propagate changes in value to the rest
+(provided all necessary input is available).
+
+Originally implemented in an imperative style (creating temporary
+connectors explicitly), the final exercise showed a way a wrapping
+converters in expressions to make a much cleaner interface (we no
+longer need to create temporary connectors explicitly, we just define
+a mathematical relationship and temporary connectors are created where
+needed).
+
+** 3.4 Concurrency: Time Is of the Essence
+Introduction of assignment into our programs introduces time as a new
+component to be considered. Expressions now can return differing
+values when evaluated at different times.
+
+Even if we must introduce assignment, but not concurrency, we should
+still design our programs as if they can be executed
+concurrently. This will help achieve modularity.
+
+*** 3.4.1 The Nature of Time in Concurrent Systems
+For the example of multiple processes withdrawing or depositing into a
+shared bank account, any process which reads the balance then tries to
+set a new balance must be able to assume that the balance is the same
+as when it was read.
+
+We must place restrictions on concurrent execution.
+
+One possible restriction could be that only one transaction can
+proceed at a time. This is overly conservation and inefficient.
+
+Another restriction could be that a system produces the same result as
+if the processes had run sequentially in some order. They don't
+actually have to run sequentially. There could be more than one
+"correct" answer in this case:
+
+Account starts with $100
+Concurrently:
+- Peter deposits $40
+- Paul withdraws half
+The result could be $70 or $90
+
+For certain systems we don't need any restrictions. E.g. a program
+which models diffusion where each particle updates its current state
+to the average of itself and its neighbors. This algorithm should
+converge to the same answer with any number of implementation details.
+
+*** 3.4.2 Mechanisms for Controlling Concurrency
+Two processes, one with ordered events [a, b ,c] and one with ordered
+events [x, y, z] makes 20 different acceptable execution patterns. If
+we, as programmers, have to consider each of these 20 orderings, this
+quickly becomes unwieldy.
+
+Many mechanisms have been developed to constrain interleaving, we'll
+look at a serializer.
+
+**** Serializing access to shared state
+We can put access and update of a variable into a serializer which
+will prevent any other process from updating the variable while this
+one is running.
+
+**** Implementing serializers
+We can create a procedure which takes procedures and ensures all
+procedures occur in order. For example withdraw and deposit on a bank
+account can be serialized together preventing a withdrawal and a
+deposit from happening at the same time (these methods require setting
+the balance state to the balance state +/- the amount provided. We
+must avoid calculating the new balance and setting the state when the
+state has shifted to a new value).
+
+**** Deadlock
+Multiple processes trying to acquire the same resources at the same
+time can end up in deadlock, where neither can proceed without the
+other releasing a resource.
+
+**** Concurrency, time and communication
+This seems to be a fundamental problem with state, time and
+communication speeds. If state is read, it takes time to use, and
+state must be updated, there is always going to be time for that state
+to change via another process.
+
+This resembles issues with the Theory of Relativity where the speed of
+light, the fastest signal that can be used to synchonize events, has a
+speed limit and the event. Complexities of time and state in computing
+may just mirror complexities of the physical universe.
+
+
+** 3.5 Streams
+*** 3.5.1 Streams Are Delayed Lists
+Streams can be thought of as lists where the car is defined and the
+cdr is a promise to evaluate the car of the cdr. It uses a delay
+mechanism which essentially just returns a procedure to evaluate
+later. Forcing a delay is essentially a function call.
+
+Stream evaluations are usually memoized to prevent redundant
+calculations. Often the cdr of a stream is used multiple times.
+
+*** 3.5.2 Infinite Streams
+Streams can be infinite. Useful for summing, approximating, etc.
+E.g. create an infinite stream of fibonacci numbers and take as many
+as we need.
+
+*** 3.5.3 Exploiting the Stream Paradigm
+The steam approach allows us to build systems with different module
+boundaries than systems organized around assignment to state
+variables. E.g. we can think of an entire time series (or signal) as a
+focus of interest, rather than the values of the state variables at
+individual moments. This gives us the entire stream of "states".
+
+*** 3.5.4 Streams and Delayed Evaluation
+Delays and forces are introduced with streams. Adding delays requires
+procedures which operate on them to know they are delays and force
+them. This is poor modularity, since we now need new procedures for
+every delayed argument variation.
+
+We could have all arguments delayed. This is Normal-Order evaluation
+which we first looked at when the substition model was
+introduced. This provides an elegant way to simplify the use of
+delayed evaluation, and would be a natural strategy if we were only
+concerned with stream processing.
+
+We'll see later in chapter 4 how switching our language to
+normal-order wreaks havoc with our ability to design programs which
+use assignment, mutate data or perform input or output. Even a single
+delay in cons-stream can cause great confusion.
+
+Mutability and delayed evaluation do not mix well.
+
+*** 3.5.5 Modularity of Functional Programs and Modularity of Objects
+When we introduced mutability it was for modularity, separating the
+random number generator from the cesaro experiment. However we can
+produce a stream of random numbers and run the experiment on
+those. Instead of telling the procedure how many trials to run, we can
+create a stream and just pull more values out.
+
+The functional-programming view of time is just a stream of states,
+the time compenent is baked into a the data on which we're
+operating. A bank account can be modeled as a stream with an initial
+balance which takes a stream of amounts to withdraw and produces a
+stream of balances.
+
+Modeling with objects is powerful and intuitive, because it matches
+our perception of the world, however these models raise problems of
+constraining the order of events and synchonizing multiple
+processes. Functional programming attempts to avoid these by not
+allowing assignment at all!
+
+However time-related problems can creep into functional programs
+too. Imagine a bank account with two users; two streams of
+withdrawals which are merged into a single stream. How do we handle
+this merge? We can't just alternate which stream we take from, what if
+one user rarely makes withdrawals?
+
+In this case we've just moved the complexity of time into the merge
+procedure.
+
+Footnote:
+The object model approximates the world by dividing it into separate
+pieces. The functional model does not modularize along object
+boundaries. The object model is useful when the unshared state of the
+objects is much larger than the state that they share.
+
+An example is quantum mechanics, where thinking of things as
+individual particles leads to paradoxes and confusion. Unifying the
+object view with the functional view may have little to do with
+programming, but rather with fundamental epistemological issues.
+* Chapter 4: Metalinguistic Abstraction
+So far we have looked at how to control complexity in a system by
+combining primitive procedures / data into compound procedures / data,
+combining these into higher-level abstractions, and preserving
+modularity by adopting appropriate large-scale views of our system.
+
+We are not limited to these mechanisms however. We can design any
+language we wish to best describe our domain. For example in
+electrical engineering we talk about networks (capacitors, resistors,
+volts, current) and systems (filters, signals, etc.)
+
+A program designed to evaluate an expression containing another
+program is called an interpreter. In fact everything we have done so
+far is essentially building interpreters. When we looked building
+abstractions to deal with some representation polynomials within our
+language we were defining a language in which to express and operate
+on polynomials. Similarly for digital circuits and propagation of
+constraints.
+
+Designing a language is called Metalinguistic Abstraction.
+
+** 4.1 The Metacircular Evaluator
+Our evaluator (interpreter) for LISP with be implemented in LISP. An
+evaluator implemented in the same language it evaluates is called
+metacircular.
+
+The two main pieces of an evaluator are EVAL and APPLY.
+1) To evaluate a combination we evaluate the operator and operands
+   within an environment, then apply the operator to the operands.
+2) To apply a compound procedure to a set of arguments, evaluate the
+   body of the operator in the environment extended with the argument
+   values bound to the formal parameters of the operator.
+
+    ->
+Eval  Apply
+    <-
+
+*** 4.1.1 The Core of the Evaluator
+**** Eval
+Takes an expression and an environment and evaluates the expression
+within that environment. Does case analysis on the expression to
+decide how evaluation should occur.
+- Primitive expressions: numbers evaluate to themselves, symbols must
+  be replaced with their value from the environment (variables)
+- Special forms: e.g. quote, cond, if, lambda, begin (do).
+- Combinations: call apply
+
+**** Apply
+Takes an expression beginning with a procedure call, and applies the
+evaluated procedure to the evaluated list of arguments.
+
+If the procedure is primitive then the procedure evaluates to the
+machine language version of itself. Otherwise the procedure is
+user-defined so the environment is extended with the formal parameters
+to the procedure call and evaluated in that context.
+
+*** 4.1.2 Expressions
+These are:
+- self-evaluating
+- variables (symbols evaluating to their assigned value)
+- quoted symbols (evaluating to themselves)
+- assignments
+- definitions
+- lambda expressions
+- conditionals
+- begin
+
+We also have derived expressions. For example we can write cond using
+if, or vice versa. And and or can also be implemented in terms of
+these conditionals.
+
+The special form let can be written in terms of lambda.
+
+*** 4.1.3 Evaluator data structures
+The evaluator must also manipulate data structures such as the
+predicates, environment and creating procedures (with their bound
+variables).
+
+*** 4.1.4 Running the Evaluator
+We need to create an initial environment then we can pass valid
+expressions to evaluate within that environment.
+
+We can set up a loop to wait for user input while keeping the loop
+active and building up an environment over time using expressions.
+
+*** 4.1.5 Data as Programs
+We can think of our evaluator as a program which takes a program as
+data and evaluates it. It can be a program which takes additional
+input (e.g. from a user) in order to evaluate.
+
+*** 4.1.6 Internal Definitions
+How should definitions be evaluated? Should they be evaluated
+sequentially? What if b is defined first but references a?
+
+In order to support the repl LISP evaluates sequentially. However a
+better approach may be to evaluate simultaneously.
+
+There are a couple ways to support simultaneous definitions:
+- scan the current body for "define"s, and define them all as
+  unassigned to begin. After all the variables have been created we
+  can set! them using their bodies.
+
+*** 4.1.7 Separating Syntactic Analysis from Execution
+Our current implementation of the evaluator performs both syntactic
+analysis and execution, which is inefficient. We can separate the
+analysis to reduce the expression down and return a function which
+takes an environment to execute on.
+
+** 4.2 Variations on Scheme - Lazy Evaluation
+Scheme is using applicative-order, the arguments to a function are
+evaluated before executing the body of the function. We can alter our
+evaluator to use normal-order, where the arguments are not evaluated
+until they are needed. Specifically we implement the evaluator to only
+evaluate the arguments when they are called by the use or used by a
+primitive procedure.
+
+Conditionals must evaluate the predicate expression.
+
+Played around with side-effects such as defining variables in a lazy
+context. Implemented lists as lazy-lists, essentially streams. Had to
+expand quote list in the evaluator to a call to list with the items in
+the quoted list. List had to be implemented in terms of lazy-cons.
+* TODO Chapter 5: Computing with Register Machines
